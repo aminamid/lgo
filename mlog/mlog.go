@@ -39,3 +39,4 @@
     	fn := funcname[strings.LastIndex(funcname, ".")+1:]
     	return fmt.Sprintf("%s %s", filename, fn)
     }
+

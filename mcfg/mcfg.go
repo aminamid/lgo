@@ -2,7 +2,6 @@ package mcfg
 
 import (
 	_ "embed"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -20,6 +19,8 @@ import (
 var mu sync.RWMutex
 var sfcmCfg interface{}
 var cfgPath string
+//go:embed cfg.yaml
+var cfgDefault []byte
 
 func loadJson(inputPath string, jsonObj interface{}) interface{} {
 	byteArray, _ := ioutil.ReadFile(inputPath)
@@ -72,18 +73,22 @@ func putCfg(c echo.Context) error {
 	return c.JSON(http.StatusOK, sfcmCfg)
 }
 
-func ConfigStart(logf io.Writer, port string, cfgpath string) {
-	//go:embed cfg.yaml
-	cfgYaml []bytes
+func ConfigStart(logf io.Writer, port string, cfgpath string, initCfg bool) error {
+
 	cfgPath = cfgpath
 	if _, err := os.Stat(cfgPath); err != nil {
-		fmt.Printf("ERROR %v\n", err)
-		_ = json.Unmarshal(cfgDefault, &sfcmCfg)
-		saveJson(sfcmCfg, cfgPath)
+		if ! initCfg  {
+			return fmt.Errorf("config file does not exist: %s", cfgPath)
+		} else {
+			log.Printf("Creating config file %s", cfgPath)
+			_ = yaml.Unmarshal(cfgDefault, &sfcmCfg)
+			if err := saveJson(cfgDefault, cfgPath); err != nil {
+				return fmt.Errorf("failed to save default config file: %v", err)
+			}
+		}
 
-	} else {
-		sfcmCfg = loadJson(cfgPath, sfcmCfg)
 	}
+	sfcmCfg = loadJson(cfgPath, sfcmCfg)
 	mu = sync.RWMutex{}
 	e := echo.New()
 	if l, ok := e.Logger.(*log.Logger); ok {
@@ -106,7 +111,8 @@ func ConfigStart(logf io.Writer, port string, cfgpath string) {
 	//}))
 
 	if err := e.Start(":" + port); err != http.ErrServerClosed {
-		e.Logger.Fatal(err)
+		return fmt.Errorf("server error: %v", err)
 	}
+	return nil
 
 }

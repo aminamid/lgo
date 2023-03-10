@@ -3,12 +3,10 @@ package main
 import (
 	_ "embed"
 	"flag"
+	"os"
 	"fmt"
 	"path/filepath"
-	"sync"
-	"time"
 
-	"github.com/aminamid/hello/mlog"
 	"github.com/aminamid/hello/mcfg"
 )
 
@@ -16,26 +14,27 @@ var (
 	//go:embed version.txt
 	version string
 
+	initCfg bool
 	showVersion bool
+	cfgFile string
 	optCfgPort string
 	
 )
 
 func main() {
-	flag.BoolVar(&showVersion, "version", false, "show version information")
-	flag.StringVar(&optCfgPort, "cfgport", "10080", "remote address to connect")
+
+	flag.BoolVar(&showVersion, "v", false, "show version information")
+	flag.BoolVar(&initCfg, "init", false, "create default cfgfile if it does not exist")
+	flag.StringVar(&optCfgPort, "p", "10080", "remote address to connect")
+	flag.StringVar(&cfgFile, "f", "./cfg.yaml", "config file")
 	flag.Parse()
+
 	if showVersion {
 		f1, _ := filepath.Abs(".")
 		f2, _ := filepath.Abs("logs")
 		fmt.Printf("%s\n%s\n%s\n", version, f1, f2)
+		os.Exit(0)
 	}
-	logf := mlog.Mlog("logs/svr.%s.log")
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go mcfg.ConfigStart(logf, optCfgPort, "./cfg.yaml")
-	time.Sleep(time.Second)
-	wg.Wait()
+	go mcfg.ConfigStart(os.Stderr, optCfgPort, cfgFile, initCfg)
 }
-

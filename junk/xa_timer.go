@@ -6,10 +6,8 @@ import (
 )
 
 func main() {
-	// チャンネルを作成
 	que := make(chan int64)
 
-	// タイムスタンプを生成するgoroutine
 	go func(q chan int64, timeDelta int64, testCount int) {
 		startTime := time.Now().UnixNano()
 		ts := startTime
@@ -21,7 +19,6 @@ func main() {
 		close(q)
 	}(que, 100_000_000, 30)
 
-	// タイムスタンプを処理するgoroutine
 	for i := 0; i < 3; i++ {
 		go func(q chan int64, id int) {
 			for ts := range q {
@@ -31,6 +28,5 @@ func main() {
 		}(que, i)
 	}
 
-	// 終了を待つ
 	time.Sleep(time.Second * 6)
 }
