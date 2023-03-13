@@ -63,11 +63,12 @@ func main() {
 		switch {
 		case strings.HasPrefix(k, "set_"):
 			vl := v.([]interface{})
-			fmt.Printf("%#v\n", v)
+			//fmt.Printf("%#v\n", v)
 			params[k] = ChanParamSetGen(vl[0].(map[string]interface{}), vl[1].([]interface{}))
 		case strings.HasPrefix(k, "weight_"):
-			fmt.Printf("%#v\n", v)
-			//params[k] := ChanParamWeightGen()
+			vl := v.([]interface{})
+			//fmt.Printf("%#v\n", v)
+			params[k] = ChanParamWeightGen(vl)
 		default:
 			fmt.Printf("Unknown param generator %s", k)
 			os.Exit(1)
@@ -75,6 +76,38 @@ func main() {
 	}
 
 }
+
+func ChanParamWeightGen(arg1 []interface{}) chan interface{} {
+	var total int32
+	n := len(arg1)
+	sliceWeight := make([]int32, n,n)
+	sliceKey := make([]string,n,n)
+	total = 0
+	for i,rawl := range arg1 {
+		l := rawl.([]interface{})
+		//fmt.Printf("k=%#v, weight=%#v\n", l[0].(string), int32(l[1].(int)))
+		total += int32(l[1].(int))
+		sliceWeight[i]=total
+		sliceKey[i]=l[0].(string)
+	}
+	chanId := range_random(1, total)
+	chanOut := make(chan interface{}, 10)
+	go func() {
+		for {
+		id := <- chanId
+		for i := range sliceWeight {
+			if id > sliceWeight[i] {
+				continue
+			}
+			chanOut <- interface{}(sliceKey[i])
+			break
+		}
+		}
+	}()
+	return chanOut
+}
+
+
 func ChanParamSetGen(arg1 map[string]interface{}, arg2 []interface{}) chan interface{} {
 
 	var chanId chan int32
@@ -102,8 +135,8 @@ func ChanParamSetGen(arg1 map[string]interface{}, arg2 []interface{}) chan inter
 	}
 	chanOut := make(chan interface{}, 10)
 	go func() {
-		id := <-chanId
 		for {
+		id := <-chanId
 			s := make(map[string]interface{})
 			for k, _ := range arg1 {
 				switch {
