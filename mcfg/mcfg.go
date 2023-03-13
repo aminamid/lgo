@@ -13,19 +13,25 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
 	"github.com/mattn/go-jsonpointer"
-    "gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v3"
 )
 
 var mu sync.RWMutex
 var sfcmCfg interface{}
 var cfgPath string
-//go:embed cfg.yaml
-var cfgDefault []byte
 
-func loadJson(inputPath string, jsonObj interface{}) interface{} {
+//go:embed cfg.yml
+var cfgDefault string
+
+func wrap(errp *error, format string, args ...any) {
+    if *errp != nil {
+        *errp = fmt.Errorf("%s: %w", fmt.Sprintf(format, args...), *errp)
+    }
+}
+
+func loadJson(inputPath string, jsonObj *interface{}) error {
 	byteArray, _ := ioutil.ReadFile(inputPath)
-	_ = yaml.Unmarshal(byteArray, &jsonObj)
-	return jsonObj
+	return yaml.Unmarshal(byteArray, &jsonObj)
 }
 
 func saveJson(jsonObj interface{}, outputPath string) error {
@@ -52,6 +58,16 @@ func ReadCfg(pathJson string, i interface{}) interface{} {
 	return it
 }
 
+func CfgAsYaml(pathJson string) []byte {
+	i := ReadCfg(pathJson, sfcmCfg)
+	d, err := yaml.Marshal(i)
+	if err != nil {
+		return []byte(fmt.Sprintf("{ error: %s}", err.Error()))
+	}
+	return d
+}
+
+
 func putCfg(c echo.Context) error {
 	defer c.Request().Body.Close()
 	body, err := ioutil.ReadAll(c.Request().Body)
@@ -73,29 +89,40 @@ func putCfg(c echo.Context) error {
 	return c.JSON(http.StatusOK, sfcmCfg)
 }
 
-func ConfigStart(logf io.Writer, port string, cfgpath string, initCfg bool) error {
-
+func ConfigStart(cherr chan error, logf io.Writer, port string, cfgpath string, initCfg bool) {
 	cfgPath = cfgpath
 	if _, err := os.Stat(cfgPath); err != nil {
-		if ! initCfg  {
-			return fmt.Errorf("config file does not exist: %s", cfgPath)
+		if !initCfg {
+			wrap(&err, "config file does not exist %s", cfgPath)
+			cherr <- err
+			return
 		} else {
 			log.Printf("Creating config file %s", cfgPath)
-			_ = yaml.Unmarshal(cfgDefault, &sfcmCfg)
-			if err := saveJson(cfgDefault, cfgPath); err != nil {
-				return fmt.Errorf("failed to save default config file: %v", err)
+			if err := yaml.Unmarshal([]byte(cfgDefault), &sfcmCfg) ; err != nil {
+				wrap(&err, "failed to load default config file")
+				cherr <- err
+				return
+			}
+			if err := saveJson(sfcmCfg, cfgPath); err != nil {
+				wrap(&err, "failed to save default config file")
+				cherr <- err
+				return
 			}
 		}
 
 	}
-	sfcmCfg = loadJson(cfgPath, sfcmCfg)
-	mu = sync.RWMutex{}
+	if err := loadJson(cfgPath, &sfcmCfg); err != nil {
+		wrap(&err, "failed to load config file")
+		cherr <- err
+		return
+	}
+	//mu = sync.RWMutex{}
 	e := echo.New()
 	if l, ok := e.Logger.(*log.Logger); ok {
 		l.SetHeader("${time_rfc3339} ${level}")
 		l.SetOutput(logf)
 	}
-	//e.Logger.Printf("%v\n", sfcmCfg)
+	//e.Logger.Printf("sfcmCfg=%#v\n", sfcmCfg)
 	e.HideBanner = true
 	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
 		Output: logf,
@@ -109,10 +136,13 @@ func ConfigStart(logf io.Writer, port string, cfgpath string, initCfg bool) erro
 	//e.Use(middleware.BodyDump(func(c echo.Context, reqBody, resBody []byte) {
 	//	fmt.Fprintf(os.Stderr, "Request: %v\n", string(reqBody))
 	//}))
+	cherr <- nil
 
 	if err := e.Start(":" + port); err != http.ErrServerClosed {
-		return fmt.Errorf("server error: %v", err)
+		wrap(&err, "server error")
+		cherr <- err
+		return
 	}
-	return nil
+	return
 
 }

@@ -1,12 +1,13 @@
-module github.com/aminamid/hello
+module github.com/aminamid/lgo
 
-go 1.20
+go 1.19
 
 require (
 	github.com/labstack/echo/v4 v4.10.2
 	github.com/labstack/gommon v0.4.0
 	github.com/mattn/go-jsonpointer v0.0.1
 	github.com/shirou/gopsutil v3.21.11+incompatible
+	golang.org/x/exp v0.0.0-20230310171629-522b1b587ee0
 	gopkg.in/yaml.v3 v3.0.1
 )
 

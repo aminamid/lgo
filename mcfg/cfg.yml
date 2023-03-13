@@ -1,0 +1,42 @@
+---
+exec:
+  default:
+    targets:
+      sceanrio: smtp
+      testCount: 1
+      testDuration: 10
+      endlessRetryLoop: false
+
+scenarios:
+  smtp:
+    maxNumSimlTrxn: 10
+    maxNumSimlConn: 10
+    numTrxnPerSec:  10
+    params:
+    - from
+    - rcpt
+params:
+  set_rcpt:
+  - tmpl_rcpt: "<pacmain%07d@openwave.com>"
+  - [range_ramdom, 0, 20]
+  weight_numrcpt:
+    - ["1", 90]
+    - ["3", 10]
+  set_from:
+  - tmpl_from: "<pacmain%07d@openwave.com>"
+    tmpl_user: "pacmain%07d"
+    tmpl_pass: "pacmain%07d"
+  - [range_permutation, 0, 10]
+  set_from_with_ip:
+  - tmpl_from: "<pacmain%07d@openwave.com>"
+    tmpl_user: "pacmain%07d"
+    tmpl_pass: "pacmain%07d"
+    listfile_ip: "fromip.list"
+  - [range_permutation, 0, 10]
+  weight_blob:
+    - [20k.blob,  90]
+    - [200k.blob, 10]
+  weight_ssl:
+    - [plain, 0]
+    - [ssl, 50]
+    - [starttls, 50]
